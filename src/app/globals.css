@@ -1,0 +1,55 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --line: #e2e8f0;
+  --accent: #0f766e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(circle at top right, #f0fdfa 0%, #f8fafc 35%, #ffffff 100%);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-body), sans-serif;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+.container-wrap {
+  @apply mx-auto w-full max-w-7xl px-4 md:px-8;
+}
+
+.panel {
+  @apply rounded-xl2 border border-line bg-white shadow-card;
+}
+
+.section-title {
+  @apply text-2xl font-semibold tracking-tight text-ink md:text-3xl;
+}
+
+.section-subtitle {
+  @apply mt-3 max-w-3xl text-sm leading-7 text-stone md:text-base;
+}
