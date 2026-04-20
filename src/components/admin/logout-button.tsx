@@ -1,18 +1,14 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export function LogoutButton() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   const handleLogout = async () => {
     setLoading(true);
     await fetch("/api/auth/logout", { method: "POST" });
-    router.replace("/admin/login");
-    router.refresh();
-    setLoading(false);
+    window.location.href = "/admin/login";
   };
 
   return (

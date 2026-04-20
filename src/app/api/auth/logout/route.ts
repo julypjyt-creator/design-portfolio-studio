@@ -8,6 +8,9 @@ export async function POST() {
     name: getSessionCookieName(),
     value: "",
     maxAge: 0,
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/"
   });
 
