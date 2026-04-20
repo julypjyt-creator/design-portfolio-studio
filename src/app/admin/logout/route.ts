@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSessionCookieName } from "@/lib/auth";
+import { getLogoutMarkerCookieName, getLogoutMarkerTTLSeconds, getSessionCookieName } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +16,15 @@ export async function GET(request: Request) {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/"
+  });
+  response.cookies.set({
+    name: getLogoutMarkerCookieName(),
+    value: "1",
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: getLogoutMarkerTTLSeconds()
   });
 
   response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");

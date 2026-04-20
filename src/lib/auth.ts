@@ -1,5 +1,7 @@
 const SESSION_COOKIE_NAME = "admin_session";
+const LOGOUT_MARKER_COOKIE_NAME = "admin_logout_marker";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7;
+const LOGOUT_MARKER_TTL_SECONDS = 60 * 10;
 
 function getAuthSecret() {
   return process.env.AUTH_SECRET || "dev-auth-secret-change-me";
@@ -76,4 +78,12 @@ export function getSessionCookieName() {
 
 export function getSessionTTLSeconds() {
   return SESSION_TTL_SECONDS;
+}
+
+export function getLogoutMarkerCookieName() {
+  return LOGOUT_MARKER_COOKIE_NAME;
+}
+
+export function getLogoutMarkerTTLSeconds() {
+  return LOGOUT_MARKER_TTL_SECONDS;
 }

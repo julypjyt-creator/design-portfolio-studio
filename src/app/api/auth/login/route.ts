@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   createSessionToken,
   getAdminPassword,
+  getLogoutMarkerCookieName,
   getAdminUsername,
   getSessionCookieName,
   getSessionTTLSeconds
@@ -33,6 +34,7 @@ export async function POST(request: Request) {
     path: "/",
     maxAge: getSessionTTLSeconds()
   });
+  response.cookies.delete(getLogoutMarkerCookieName());
 
   return response;
 }
