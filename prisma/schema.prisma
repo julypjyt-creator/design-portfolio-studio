@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Work {
+  id                 String    @id @default(cuid())
+  name               String
+  slug               String    @unique
+  coverImage         String
+  detailImages       Json
+  category           String
+  projectType        String
+  summary            String
+  completedAt        DateTime?
+  commercialIncluded Boolean   @default(false)
+  commercialUse      Boolean   @default(false)
+  featured           Boolean   @default(false)
+  isPublic           Boolean   @default(true)
+  status             String
+  projectBackground  String?
+  designDescription  String?
+  software           Json?
+  deliverables       Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  tags               WorkTag[]
+
+  @@index([status])
+  @@index([isPublic])
+  @@index([completedAt])
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  works     WorkTag[]
+}
+
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkTag {
+  workId String
+  tagId  Int
+  work   Work @relation(fields: [workId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([workId, tagId])
+  @@index([tagId])
+}

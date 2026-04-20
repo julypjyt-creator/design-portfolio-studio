@@ -8,7 +8,7 @@ import { useWorks } from "@/lib/use-works";
 
 export default function WorkDetailPage() {
   const params = useParams<{ id: string }>();
-  const works = useWorks();
+  const works = useWorks("public");
   const slug = params?.id;
 
   const work = works.find((item) => item.slug === slug);

@@ -6,7 +6,7 @@ import { getKpis } from "@/lib/stats";
 import { useWorks } from "@/lib/use-works";
 
 export default function AdminHomePage() {
-  const works = useWorks();
+  const works = useWorks("all");
   const kpis = getKpis(works);
 
   const cards = [

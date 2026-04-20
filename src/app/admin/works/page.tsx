@@ -12,7 +12,7 @@ function toCsvCell(value: string | number | boolean) {
 }
 
 export default function AdminWorksPage() {
-  const works = useWorks();
+  const works = useWorks("all");
 
   const handleExport = () => {
     const headers = [

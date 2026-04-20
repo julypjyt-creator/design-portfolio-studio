@@ -7,7 +7,7 @@ import { getCategoryDistributionFrom, getKpis, getMonthlyCompletions, getRecentT
 import { useWorks } from "@/lib/use-works";
 
 export default function AnalyticsPage() {
-  const works = useWorks();
+  const works = useWorks("all");
   const [yearFilter, setYearFilter] = useState("全部");
   const years = useMemo(() => ["全部", ...new Set(works.map((w) => w.completedAt.slice(0, 4)))], [works]);
 

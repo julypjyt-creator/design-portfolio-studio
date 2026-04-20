@@ -8,7 +8,7 @@ import { useWorks } from "@/lib/use-works";
 
 export default function EditWorkPage() {
   const params = useParams<{ id: string }>();
-  const works = useWorks();
+  const works = useWorks("all");
   const work = works.find((item) => item.id === params?.id);
 
   if (!work) {

@@ -36,7 +36,7 @@
 - 默认账号：`admin`
 - 默认密码：`admin123456`
 
-建议创建 `.env.local`（可从 `.env.example` 复制）并修改为你自己的凭据：
+建议创建 `.env.local`（可从 `.env.example` 复制）并修改为你自己的凭据和数据库连接：
 
 ```bash
 cp .env.example .env.local
@@ -48,9 +48,11 @@ cp .env.example .env.local
 ADMIN_USERNAME=your_admin_name
 ADMIN_PASSWORD=your_strong_password
 AUTH_SECRET=your_long_random_secret
+DATABASE_URL="mysql://root:password@127.0.0.1:3306/design_portfolio?connection_limit=5"
 ```
 
 > `AUTH_SECRET` 建议至少 32 位随机字符串。
+> `DATABASE_URL` 可暂时留空；留空时会回退到内存数据模式。
 
 ## 项目结构
 
@@ -76,6 +78,13 @@ npm install
 npm run dev
 ```
 
+如果要启用 MySQL，再执行：
+
+```bash
+npm run prisma:generate
+npm run prisma:migrate
+```
+
 4. 访问
 
 - 前台：`http://localhost:3000`
@@ -83,6 +92,6 @@ npm run dev
 
 ## 后续迭代建议
 
-- 接入数据库与真实上传存储
+- 接入对象存储（OSS/S3/Cloudinary）替代 Base64 图片
 - 接入鉴权与多角色权限
 - 增加作品版本记录与操作日志

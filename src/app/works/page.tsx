@@ -5,8 +5,7 @@ import { WorksGrid } from "@/components/works/works-grid";
 import { useWorks } from "@/lib/use-works";
 
 export default function WorksPage() {
-  const works = useWorks();
-  const visibleWorks = works.filter((w) => w.isPublic && w.status === "已发布");
+  const visibleWorks = useWorks("public");
 
   return (
     <SiteShell>

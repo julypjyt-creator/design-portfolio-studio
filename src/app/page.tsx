@@ -7,8 +7,7 @@ import { categories } from "@/data/works";
 import { useWorks } from "@/lib/use-works";
 
 export default function HomePage() {
-  const works = useWorks();
-  const visibleWorks = works.filter((w) => w.isPublic && w.status === "已发布");
+  const visibleWorks = useWorks("public");
   const featured = visibleWorks.filter((w) => w.featured).slice(0, 3);
   const latest = [...visibleWorks].sort((a, b) => b.completedAt.localeCompare(a.completedAt)).slice(0, 3);
 

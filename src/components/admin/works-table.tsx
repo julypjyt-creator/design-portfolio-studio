@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Work } from "@/lib/types";
-import { loadWorksFromStorage, removeWorkFromStorage } from "@/lib/work-storage";
 
 export function WorksTable({ works }: { works: Work[] }) {
   const [rows, setRows] = useState<Work[]>(works);
@@ -11,10 +10,11 @@ export function WorksTable({ works }: { works: Work[] }) {
   const [status, setStatus] = useState("全部");
   const [category, setCategory] = useState("全部");
   const [selected, setSelected] = useState<string[]>([]);
+  const [errorText, setErrorText] = useState("");
 
   useEffect(() => {
-    setRows(loadWorksFromStorage());
-  }, []);
+    setRows(works);
+  }, [works]);
 
   const categories = useMemo(() => [...new Set(rows.map((w) => w.category))], [rows]);
   const statuses = useMemo(() => [...new Set(rows.map((w) => w.status))], [rows]);
@@ -42,10 +42,18 @@ export function WorksTable({ works }: { works: Work[] }) {
     setSelected((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
   };
 
-  const handleDelete = (id: string) => {
-    const next = removeWorkFromStorage(id);
-    setRows(next);
+  const handleDelete = async (id: string) => {
+    setErrorText("");
+    const response = await fetch(`/api/works/${id}`, { method: "DELETE" }).catch(() => null);
+
+    if (!response?.ok) {
+      setErrorText("删除失败，请稍后重试。");
+      return;
+    }
+
+    setRows((prev) => prev.filter((item) => item.id !== id));
     setSelected((prev) => prev.filter((item) => item !== id));
+    window.dispatchEvent(new Event("works-updated"));
   };
 
   return (
@@ -75,6 +83,7 @@ export function WorksTable({ works }: { works: Work[] }) {
         </select>
         <button className="h-10 rounded-lg bg-ink px-4 text-sm font-medium text-white">批量操作（{selected.length}）</button>
       </div>
+      {errorText ? <p className="px-4 pt-3 text-sm text-red-600">{errorText}</p> : null}
 
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
@@ -114,7 +123,7 @@ export function WorksTable({ works }: { works: Work[] }) {
                     <Link href={`/works/${work.slug}`} className="hover:text-ink" target="_blank" rel="noreferrer">
                       预览
                     </Link>
-                    <button className="text-red-500" onClick={() => handleDelete(work.id)}>
+                    <button type="button" className="text-red-500" onClick={() => void handleDelete(work.id)}>
                       删除
                     </button>
                   </div>

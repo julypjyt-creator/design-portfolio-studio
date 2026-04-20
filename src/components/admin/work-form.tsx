@@ -5,9 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { categories } from "@/data/works";
-import { addTagToStorage, loadTagsFromStorage } from "@/lib/tag-storage";
 import { ProjectType, Work, WorkStatus } from "@/lib/types";
-import { addWorkToStorage, updateWorkInStorage } from "@/lib/work-storage";
 
 const projectTypes: ProjectType[] = ["住宅", "商业空间", "公共空间", "文旅景观", "概念提案"];
 const statuses: WorkStatus[] = ["草稿", "已发布", "已归档"];
@@ -68,6 +66,14 @@ function dedupeTags(input: string[]) {
   return output;
 }
 
+async function fetchTagsFromApi() {
+  const response = await fetch("/api/tags", {
+    cache: "no-store"
+  });
+  const data = (await response.json().catch(() => ({}))) as { items?: string[] };
+  return Array.isArray(data.items) ? data.items : [];
+}
+
 export function WorkForm({ initialWork }: { initialWork?: Work }) {
   const isEditMode = Boolean(initialWork);
   const router = useRouter();
@@ -93,16 +99,21 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
 
   const [submitted, setSubmitted] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const syncTags = () => setAvailableTags(loadTagsFromStorage());
+    const syncTags = () => {
+      void fetchTagsFromApi()
+        .then((items) => setAvailableTags(items))
+        .catch(() => {
+          // Keep existing list on request failures.
+        });
+    };
     syncTags();
 
-    window.addEventListener("storage", syncTags);
     window.addEventListener("tags-updated", syncTags);
 
     return () => {
-      window.removeEventListener("storage", syncTags);
       window.removeEventListener("tags-updated", syncTags);
     };
   }, []);
@@ -147,13 +158,27 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
     }, 200);
   };
 
-  const addTagToSelection = (tag: string, createIfMissing = false) => {
+  const addTagToSelection = async (tag: string, createIfMissing = false) => {
     const normalized = tag.trim();
     if (!normalized) return;
 
     if (createIfMissing) {
-      const nextTagPool = addTagToStorage(normalized);
-      setAvailableTags(nextTagPool);
+      try {
+        const response = await fetch("/api/tags", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: normalized })
+        });
+        if (response.ok) {
+          const data = (await response.json().catch(() => ({}))) as { items?: string[] };
+          if (Array.isArray(data.items)) {
+            setAvailableTags(data.items);
+          }
+          window.dispatchEvent(new Event("tags-updated"));
+        }
+      } catch {
+        // Keep going with local selected tags to avoid interrupting form input.
+      }
     }
 
     setSelectedTags((prev) => {
@@ -169,11 +194,11 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
       if (!normalizedTagInput) return;
 
       if (matchedExistingTag) {
-        addTagToSelection(matchedExistingTag);
+        void addTagToSelection(matchedExistingTag);
         return;
       }
 
-      addTagToSelection(normalizedTagInput, true);
+      void addTagToSelection(normalizedTagInput, true);
       return;
     }
 
@@ -229,9 +254,10 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
     setFeatured(false);
   };
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setErrorText("");
+    setSubmitted(false);
 
     if (!name.trim()) {
       setErrorText("请填写作品名称");
@@ -262,18 +288,34 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
       updatedAt: nowIso
     };
 
-    if (isEditMode) {
-      updateWorkInStorage(base);
-    } else {
-      addWorkToStorage(base);
-      resetForm();
+    setIsSaving(true);
+
+    const endpoint = isEditMode ? `/api/works/${base.id}` : "/api/works";
+    const method = isEditMode ? "PUT" : "POST";
+    const response = await fetch(endpoint, {
+      method,
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(base)
+    }).catch(() => null);
+
+    setIsSaving(false);
+
+    if (!response?.ok) {
+      setErrorText("保存失败，请稍后重试。");
+      return;
     }
 
     setSubmitted(true);
+    window.dispatchEvent(new Event("works-updated"));
 
     if (isEditMode) {
       setTimeout(() => router.push("/admin/works"), 500);
+      return;
     }
+
+    resetForm();
   };
 
   return (
@@ -361,7 +403,7 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
                 <button
                   key={tag}
                   type="button"
-                  onClick={() => addTagToSelection(tag)}
+                  onClick={() => void addTagToSelection(tag)}
                   className="block w-full border-b border-line px-4 py-2 text-left text-sm text-ink last:border-b-0 hover:bg-panel"
                 >
                   使用已有标签：{tag}
@@ -370,7 +412,7 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
               {canCreateTag ? (
                 <button
                   type="button"
-                  onClick={() => addTagToSelection(normalizedTagInput, true)}
+                  onClick={() => void addTagToSelection(normalizedTagInput, true)}
                   className="block w-full px-4 py-2 text-left text-sm text-accent hover:bg-panel"
                 >
                   新建标签：{normalizedTagInput}
@@ -453,8 +495,8 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <button type="submit" className="h-11 rounded-lg bg-ink px-6 text-sm font-medium text-white">
-          {isEditMode ? "保存修改" : "保存作品"}
+        <button type="submit" disabled={isSaving} className="h-11 rounded-lg bg-ink px-6 text-sm font-medium text-white disabled:opacity-60">
+          {isSaving ? "保存中..." : isEditMode ? "保存修改" : "保存作品"}
         </button>
       </div>
 
@@ -464,13 +506,11 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
           {isEditMode ? (
             <>修改已保存，正在返回 <Link href="/admin/works" className="underline">作品管理</Link>。</>
           ) : (
-            <>已成功保存到本地。去 <Link href="/admin/works" className="underline">作品管理</Link> 查看。</>
+            <>已成功保存。去 <Link href="/admin/works" className="underline">作品管理</Link> 查看。</>
           )}
         </p>
       ) : null}
-      <p className="text-xs text-stone">
-        提示：当前为无数据库演示模式，作品信息会保存在浏览器本地；上传图片用于预览，可能不会长期持久化。
-      </p>
+      <p className="text-xs text-stone">提示：当前作品会通过接口保存；若配置了 MySQL，会自动写入数据库。</p>
     </form>
   );
 }
