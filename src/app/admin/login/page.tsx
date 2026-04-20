@@ -15,12 +15,6 @@ export default async function AdminLoginPage({
         <p className="mt-2 text-sm text-stone">请输入管理员账号和密码后进入后台。</p>
 
         <AdminLoginForm nextPath={nextPath} />
-
-        <div className="mt-6 rounded-lg border border-line bg-panel p-3 text-xs leading-6 text-stone">
-          <p>默认账号：admin</p>
-          <p>默认密码：admin123456</p>
-          <p className="mt-1">上线前请在 `.env.local` 设置 `ADMIN_USERNAME`、`ADMIN_PASSWORD`、`AUTH_SECRET`。</p>
-        </div>
       </section>
     </main>
   );
