@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { BarChart3, FolderKanban, LayoutDashboard, PlusCircle, Tag, Layers3, ShieldCheck } from "lucide-react";
 import { LogoutButton } from "@/components/admin/logout-button";
 
@@ -21,6 +25,50 @@ export function AdminShell({
   title: string;
   description: string;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkSession = async () => {
+      try {
+        const response = await fetch("/api/auth/session", {
+          cache: "no-store"
+        });
+        const data = (await response.json()) as { authenticated?: boolean };
+
+        if (!data.authenticated) {
+          const nextPath = pathname || "/admin";
+          router.replace(`/admin/login?next=${encodeURIComponent(nextPath)}`);
+          return;
+        }
+
+        if (mounted) {
+          setAuthorized(true);
+        }
+      } catch {
+        router.replace("/admin/login");
+      }
+    };
+
+    setAuthorized(false);
+    checkSession();
+
+    return () => {
+      mounted = false;
+    };
+  }, [pathname, router]);
+
+  if (!authorized) {
+    return (
+      <div className="container-wrap flex min-h-[60vh] items-center justify-center text-sm text-stone">
+        正在验证登录状态...
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100/70">
       <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 md:grid-cols-[240px_1fr] md:px-8">
