@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
-import { categories } from "@/data/works";
+import { categories as seedCategories } from "@/data/works";
 import { ProjectType, Work, WorkStatus } from "@/lib/types";
 
 const projectTypes: ProjectType[] = ["住宅", "商业空间", "公共空间", "文旅景观", "概念提案"];
@@ -80,8 +80,32 @@ function dedupeTags(input: string[]) {
   return output;
 }
 
+function dedupeValues(input: string[]) {
+  const output: string[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of input) {
+    const item = raw.trim();
+    if (!item) continue;
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(item);
+  }
+
+  return output;
+}
+
 async function fetchTagsFromApi() {
   const response = await fetch("/api/tags", {
+    cache: "no-store"
+  });
+  const data = (await response.json().catch(() => ({}))) as { items?: string[] };
+  return Array.isArray(data.items) ? data.items : [];
+}
+
+async function fetchCategoriesFromApi() {
+  const response = await fetch("/api/categories", {
     cache: "no-store"
   });
   const data = (await response.json().catch(() => ({}))) as { items?: string[] };
@@ -94,7 +118,10 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
 
   const [name, setName] = useState(initialWork?.name ?? "");
   const [projectType, setProjectType] = useState<ProjectType>(initialWork?.projectType ?? "住宅");
-  const [category, setCategory] = useState(initialWork?.category ?? categories[0]);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>(
+    dedupeValues([...seedCategories, initialWork?.category ?? ""])
+  );
+  const [category, setCategory] = useState(initialWork?.category ?? seedCategories[0] ?? "其他");
   const [completedAt, setCompletedAt] = useState(initialWork?.completedAt ?? "");
   const [summary, setSummary] = useState(initialWork?.summary ?? "");
   const [status, setStatus] = useState<WorkStatus>(initialWork?.status ?? "已发布");
@@ -132,6 +159,32 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
       window.removeEventListener("tags-updated", syncTags);
     };
   }, []);
+
+  useEffect(() => {
+    const syncCategories = () => {
+      void fetchCategoriesFromApi()
+        .then((items) => {
+          const nextItems = dedupeValues(items.length ? items : [...seedCategories, initialWork?.category ?? ""]);
+          setCategoryOptions(nextItems);
+
+          setCategory((current) => {
+            if (nextItems.includes(current)) return current;
+            if (initialWork?.category && nextItems.includes(initialWork.category)) return initialWork.category;
+            return nextItems[0] ?? "其他";
+          });
+        })
+        .catch(() => {
+          // Keep previous list if request fails.
+        });
+    };
+
+    syncCategories();
+    window.addEventListener("categories-updated", syncCategories);
+
+    return () => {
+      window.removeEventListener("categories-updated", syncCategories);
+    };
+  }, [initialWork?.category]);
 
   const progressText = useMemo(() => {
     if (isUploading && !uploadProgress) return "上传准备中";
@@ -292,7 +345,7 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
   const resetForm = () => {
     setName("");
     setProjectType("住宅");
-    setCategory(categories[0]);
+    setCategory(categoryOptions[0] ?? seedCategories[0] ?? "其他");
     setCompletedAt("");
     setSummary("");
     setStatus("已发布");
@@ -331,7 +384,7 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
       slug: initialWork?.slug ?? `${slugify(name)}-${Date.now().toString().slice(-4)}`,
       coverImage: coverPreview ?? fallbackCover,
       detailImages: galleryPreview,
-      category,
+      category: category.trim() || categoryOptions[0] || seedCategories[0] || "其他",
       tags: uniqueTags.length ? uniqueTags : ["现代"],
       projectType,
       summary: summary.trim() || "暂无项目简介",
@@ -404,10 +457,10 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
           作品分类
           <select
             value={category}
-            onChange={(e) => setCategory(e.target.value as (typeof categories)[number])}
+            onChange={(e) => setCategory(e.target.value)}
             className="h-11 w-full rounded-lg border border-line px-4 text-sm"
           >
-            {categories.map((item) => (
+            {categoryOptions.map((item) => (
               <option key={item}>{item}</option>
             ))}
           </select>

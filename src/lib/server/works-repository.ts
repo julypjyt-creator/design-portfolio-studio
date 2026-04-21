@@ -1,5 +1,5 @@
 import { Work } from "@/lib/types";
-import { tags as seedTags, works as seedWorks } from "@/data/works";
+import { categories as seedCategories, tags as seedTags, works as seedWorks } from "@/data/works";
 import { prisma } from "@/lib/server/prisma";
 
 export type WorksScope = "all" | "public";
@@ -8,6 +8,7 @@ const dbEnabled = Boolean(process.env.DATABASE_URL);
 
 const memoryWorks: Work[] = structuredClone(seedWorks);
 const memoryTags = Array.from(new Set([...seedTags, ...seedWorks.flatMap((work) => work.tags)]));
+const memoryCategories = Array.from(new Set([...seedCategories, ...seedWorks.map((work) => work.category)]));
 
 function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -42,6 +43,26 @@ function dedupeTags(input: string[]) {
     if (seen.has(key)) continue;
     seen.add(key);
     output.push(tag);
+  }
+
+  return output;
+}
+
+function normalizeName(value: string) {
+  return value.trim();
+}
+
+function dedupeNames(input: string[]) {
+  const output: string[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of input) {
+    const item = normalizeName(raw);
+    if (!item) continue;
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    output.push(item);
   }
 
   return output;
@@ -189,6 +210,9 @@ export async function createWork(payload: Work) {
 
   if (!dbEnabled) {
     memoryWorks.unshift({ ...data, updatedAt: new Date().toISOString() });
+    if (!memoryCategories.some((item) => item.toLowerCase() === data.category.toLowerCase())) {
+      memoryCategories.push(data.category);
+    }
     for (const tag of data.tags) {
       if (!memoryTags.some((item) => item.toLowerCase() === tag.toLowerCase())) {
         memoryTags.push(tag);
@@ -198,6 +222,12 @@ export async function createWork(payload: Work) {
   }
 
   try {
+    await prisma.category.upsert({
+      where: { name: data.category },
+      create: { name: data.category },
+      update: {}
+    });
+
     const tagRecords = await upsertTagsAndGetIds(data.tags);
 
     const created = await prisma.work.create({
@@ -239,6 +269,9 @@ export async function createWork(payload: Work) {
     return toWorkEntity(created);
   } catch {
     memoryWorks.unshift({ ...data, updatedAt: new Date().toISOString() });
+    if (!memoryCategories.some((item) => item.toLowerCase() === data.category.toLowerCase())) {
+      memoryCategories.push(data.category);
+    }
     return data;
   }
 }
@@ -255,6 +288,9 @@ export async function updateWork(id: string, payload: Work) {
     const index = memoryWorks.findIndex((item) => item.id === id);
     if (index >= 0) {
       memoryWorks[index] = { ...data, updatedAt: new Date().toISOString() };
+      if (!memoryCategories.some((item) => item.toLowerCase() === data.category.toLowerCase())) {
+        memoryCategories.push(data.category);
+      }
       for (const tag of data.tags) {
         if (!memoryTags.some((item) => item.toLowerCase() === tag.toLowerCase())) {
           memoryTags.push(tag);
@@ -265,6 +301,12 @@ export async function updateWork(id: string, payload: Work) {
   }
 
   try {
+    await prisma.category.upsert({
+      where: { name: data.category },
+      create: { name: data.category },
+      update: {}
+    });
+
     const tagRecords = await upsertTagsAndGetIds(data.tags);
 
     await prisma.$transaction([
@@ -315,6 +357,9 @@ export async function updateWork(id: string, payload: Work) {
     const index = memoryWorks.findIndex((item) => item.id === id);
     if (index >= 0) {
       memoryWorks[index] = { ...data, updatedAt: new Date().toISOString() };
+      if (!memoryCategories.some((item) => item.toLowerCase() === data.category.toLowerCase())) {
+        memoryCategories.push(data.category);
+      }
       for (const tag of data.tags) {
         if (!memoryTags.some((item) => item.toLowerCase() === tag.toLowerCase())) {
           memoryTags.push(tag);
@@ -416,5 +461,200 @@ export async function removeTag(name: string) {
     return listTags();
   } catch {
     return listTags();
+  }
+}
+
+export async function listCategories() {
+  if (!dbEnabled) {
+    return dedupeNames(memoryCategories);
+  }
+
+  try {
+    const rows = await prisma.category.findMany({
+      orderBy: { createdAt: "asc" }
+    });
+
+    if (rows.length > 0) {
+      return dedupeNames(rows.map((row) => row.name));
+    }
+
+    const fromWorks = await prisma.work.findMany({
+      select: { category: true },
+      distinct: ["category"]
+    });
+    const seeds = dedupeNames([...seedCategories, ...fromWorks.map((row) => row.category)]);
+
+    if (seeds.length > 0) {
+      await prisma.category.createMany({
+        data: seeds.map((name) => ({ name })),
+        skipDuplicates: true
+      });
+    }
+
+    return seeds;
+  } catch {
+    return dedupeNames(memoryCategories);
+  }
+}
+
+export async function addCategory(name: string) {
+  const normalized = normalizeName(name);
+  if (!normalized) return listCategories();
+
+  if (!dbEnabled) {
+    if (!memoryCategories.some((item) => item.toLowerCase() === normalized.toLowerCase())) {
+      memoryCategories.push(normalized);
+    }
+    return listCategories();
+  }
+
+  try {
+    const existed = await prisma.category.findFirst({
+      where: { name: normalized }
+    });
+    if (!existed) {
+      await prisma.category.create({
+        data: { name: normalized }
+      });
+    }
+    return listCategories();
+  } catch {
+    if (!memoryCategories.some((item) => item.toLowerCase() === normalized.toLowerCase())) {
+      memoryCategories.push(normalized);
+    }
+    return listCategories();
+  }
+}
+
+export async function renameCategory(name: string, nextName: string) {
+  const from = normalizeName(name);
+  const to = normalizeName(nextName);
+
+  if (!from || !to || from.toLowerCase() === to.toLowerCase()) {
+    return listCategories();
+  }
+
+  if (!dbEnabled) {
+    const current = memoryCategories.find((item) => item.toLowerCase() === from.toLowerCase());
+    if (!current) return listCategories();
+
+    const existed = memoryCategories.find((item) => item.toLowerCase() === to.toLowerCase());
+    const target = existed ?? to;
+
+    for (const work of memoryWorks) {
+      if (work.category.toLowerCase() === current.toLowerCase()) {
+        work.category = target;
+      }
+    }
+
+    if (!existed) {
+      memoryCategories.push(to);
+    }
+    const index = memoryCategories.findIndex((item) => item.toLowerCase() === current.toLowerCase());
+    if (index >= 0) {
+      memoryCategories.splice(index, 1);
+    }
+
+    return listCategories();
+  }
+
+  try {
+    const current = await prisma.category.findFirst({
+      where: { name: from }
+    });
+    const currentName = current?.name ?? from;
+
+    let target = await prisma.category.findFirst({
+      where: { name: to }
+    });
+
+    await prisma.$transaction(async (tx) => {
+      if (!target) {
+        target = await tx.category.create({
+          data: { name: to }
+        });
+      }
+
+      await tx.work.updateMany({
+        where: { category: currentName },
+        data: { category: target.name }
+      });
+
+      if (current && current.name.toLowerCase() !== target.name.toLowerCase()) {
+        await tx.category.delete({
+          where: { id: current.id }
+        });
+      }
+    });
+
+    return listCategories();
+  } catch {
+    return listCategories();
+  }
+}
+
+export async function removeCategory(name: string) {
+  const normalized = normalizeName(name);
+  if (!normalized) return listCategories();
+
+  if (!dbEnabled) {
+    const current = memoryCategories.find((item) => item.toLowerCase() === normalized.toLowerCase());
+    if (!current || memoryCategories.length <= 1) {
+      return listCategories();
+    }
+
+    const fallback = memoryCategories.find((item) => item.toLowerCase() !== current.toLowerCase()) ?? "其他";
+
+    for (const work of memoryWorks) {
+      if (work.category.toLowerCase() === current.toLowerCase()) {
+        work.category = fallback;
+      }
+    }
+
+    const index = memoryCategories.findIndex((item) => item.toLowerCase() === current.toLowerCase());
+    if (index >= 0) {
+      memoryCategories.splice(index, 1);
+    }
+
+    return listCategories();
+  }
+
+  try {
+    const categories = await listCategories();
+    const current = categories.find((item) => item.toLowerCase() === normalized.toLowerCase());
+    if (!current || categories.length <= 1) {
+      return categories;
+    }
+
+    const fallback = categories.find((item) => item.toLowerCase() !== current.toLowerCase()) ?? "其他";
+    const categoryRow = await prisma.category.findFirst({
+      where: { name: current }
+    });
+
+    await prisma.$transaction(async (tx) => {
+      const fallbackRow = await tx.category.findFirst({
+        where: { name: fallback }
+      });
+      if (!fallbackRow) {
+        await tx.category.create({
+          data: { name: fallback }
+        });
+      }
+
+      await tx.work.updateMany({
+        where: { category: current },
+        data: { category: fallback }
+      });
+
+      if (categoryRow && categoryRow.name.toLowerCase() !== fallback.toLowerCase()) {
+        await tx.category.delete({
+          where: { id: categoryRow.id }
+        });
+      }
+    });
+
+    return listCategories();
+  } catch {
+    return listCategories();
   }
 }

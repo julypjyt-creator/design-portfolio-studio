@@ -1,9 +1,4 @@
-export type WorkCategory =
-  | "室内设计"
-  | "彩平图"
-  | "效果图转平面图"
-  | "室外景观渲染"
-  | "其他";
+export type WorkCategory = string;
 
 export type WorkStatus = "草稿" | "已发布" | "已归档";
 
