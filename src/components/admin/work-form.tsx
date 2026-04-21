@@ -13,32 +13,46 @@ const statuses: WorkStatus[] = ["草稿", "已发布", "已归档"];
 const fallbackCover =
   "https://images.unsplash.com/photo-1616594039964-3d5d6be4f2f1?auto=format&fit=crop&w=1600&q=80";
 
-function compressImageToDataURL(file: File, maxWidth = 1400, quality = 0.78): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new window.Image();
-      img.onload = () => {
-        const scale = Math.min(1, maxWidth / img.width);
-        const width = Math.round(img.width * scale);
-        const height = Math.round(img.height * scale);
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          reject(new Error("图片压缩失败"));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
-      };
-      img.onerror = () => reject(new Error("图片加载失败"));
-      img.src = String(reader.result ?? "");
-    };
-    reader.onerror = () => reject(new Error("文件读取失败"));
-    reader.readAsDataURL(file);
-  });
+async function uploadImageToApi(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch("/api/uploads", {
+    method: "POST",
+    body: formData
+  }).catch(() => null);
+
+  if (!response?.ok) {
+    const payload = (await response?.json().catch(() => ({}))) as { message?: string };
+    throw new Error(payload.message || "上传失败，请稍后重试");
+  }
+
+  const payload = (await response.json().catch(() => ({}))) as { url?: string };
+  if (!payload.url) {
+    throw new Error("上传失败，未返回图片地址");
+  }
+
+  return payload.url;
+}
+
+async function deleteImageFromApi(url: string) {
+  const response = await fetch("/api/uploads", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ url })
+  }).catch(() => null);
+
+  if (!response) return false;
+  if (response.ok) return true;
+
+  const payload = (await response.json().catch(() => ({}))) as { message?: string };
+  if (payload.message?.includes("仅允许删除当前项目上传目录中的图片")) {
+    return true;
+  }
+
+  return false;
 }
 
 function slugify(input: string) {
@@ -100,6 +114,7 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
   const [submitted, setSubmitted] = useState(false);
   const [errorText, setErrorText] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     const syncTags = () => {
@@ -119,10 +134,11 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
   }, []);
 
   const progressText = useMemo(() => {
+    if (isUploading && !uploadProgress) return "上传准备中";
     if (!uploadProgress) return "未上传";
     if (uploadProgress >= 100) return "上传完成";
     return `上传中 ${uploadProgress}%`;
-  }, [uploadProgress]);
+  }, [isUploading, uploadProgress]);
 
   const normalizedTagInput = tagInput.trim();
 
@@ -144,19 +160,6 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
     normalizedTagInput.length > 0 &&
     !availableTags.some((item) => item.toLowerCase() === normalizedTagInput.toLowerCase()) &&
     !selectedTags.some((item) => item.toLowerCase() === normalizedTagInput.toLowerCase());
-
-  const simulateUpload = () => {
-    setUploadProgress(20);
-    const timer = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(timer);
-          return 100;
-        }
-        return prev + 20;
-      });
-    }, 200);
-  };
 
   const addTagToSelection = async (tag: string, createIfMissing = false) => {
     const normalized = tag.trim();
@@ -214,27 +217,76 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
   const handleCover = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setErrorText("");
+    setIsUploading(true);
+    setUploadProgress(15);
 
-    const url = await compressImageToDataURL(file);
-    setCoverPreview(url);
-    simulateUpload();
+    try {
+      const url = await uploadImageToApi(file);
+      setCoverPreview(url);
+      setUploadProgress(100);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "封面图上传失败";
+      setErrorText(message);
+      setUploadProgress(0);
+    } finally {
+      setIsUploading(false);
+      event.target.value = "";
+    }
   };
 
   const handleGallery = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
     if (!files.length) return;
+    setErrorText("");
+    setIsUploading(true);
+    setUploadProgress(5);
 
-    const urls = await Promise.all(files.map((file) => compressImageToDataURL(file, 1600, 0.75)));
-    setGalleryPreview((prev) => [...prev, ...urls]);
-    simulateUpload();
+    const uploaded: string[] = [];
+
+    try {
+      for (let index = 0; index < files.length; index += 1) {
+        const url = await uploadImageToApi(files[index]);
+        uploaded.push(url);
+        setGalleryPreview((prev) => [...prev, url]);
+        setUploadProgress(Math.round(((index + 1) / files.length) * 100));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "详情图上传失败";
+      setErrorText(message);
+    } finally {
+      setIsUploading(false);
+      event.target.value = "";
+      if (!uploaded.length) {
+        setUploadProgress(0);
+      }
+    }
   };
 
-  const removeCover = () => {
+  const removeCover = async () => {
+    const current = coverPreview;
     setCoverPreview(null);
+
+    if (!current) return;
+    const removed = await deleteImageFromApi(current);
+    if (!removed) {
+      setErrorText("封面图已从表单移除，但云端删除失败，可稍后重试。");
+    }
   };
 
-  const removeGalleryImage = (index: number) => {
-    setGalleryPreview((prev) => prev.filter((_, idx) => idx !== index));
+  const removeGalleryImage = async (index: number) => {
+    let removedUrl = "";
+
+    setGalleryPreview((prev) => {
+      removedUrl = prev[index] ?? "";
+      return prev.filter((_, idx) => idx !== index);
+    });
+
+    if (!removedUrl) return;
+    const removed = await deleteImageFromApi(removedUrl);
+    if (!removed) {
+      setErrorText("图片已从表单移除，但云端删除失败，可稍后重试。");
+    }
   };
 
   const resetForm = () => {
@@ -258,6 +310,11 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
     event.preventDefault();
     setErrorText("");
     setSubmitted(false);
+
+    if (isUploading) {
+      setErrorText("图片上传中，请稍候再保存。");
+      return;
+    }
 
     if (!name.trim()) {
       setErrorText("请填写作品名称");
@@ -433,7 +490,7 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
               <Image src={coverPreview} alt="封面预览" fill className="object-cover" />
               <button
                 type="button"
-                onClick={removeCover}
+                onClick={() => void removeCover()}
                 className="absolute right-2 top-2 rounded-md bg-white/90 px-2 py-1 text-xs text-red-600 shadow"
               >
                 删除
@@ -451,7 +508,7 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
                 <Image src={image} alt="详情图预览" fill className="object-cover" />
                 <button
                   type="button"
-                  onClick={() => removeGalleryImage(index)}
+                  onClick={() => void removeGalleryImage(index)}
                   className="absolute right-1.5 top-1.5 rounded-md bg-white/90 px-2 py-0.5 text-xs text-red-600 shadow"
                 >
                   删除
@@ -495,8 +552,12 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <button type="submit" disabled={isSaving} className="h-11 rounded-lg bg-ink px-6 text-sm font-medium text-white disabled:opacity-60">
-          {isSaving ? "保存中..." : isEditMode ? "保存修改" : "保存作品"}
+        <button
+          type="submit"
+          disabled={isSaving || isUploading}
+          className="h-11 rounded-lg bg-ink px-6 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {isSaving ? "保存中..." : isUploading ? "图片上传中..." : isEditMode ? "保存修改" : "保存作品"}
         </button>
       </div>
 
@@ -510,7 +571,7 @@ export function WorkForm({ initialWork }: { initialWork?: Work }) {
           )}
         </p>
       ) : null}
-      <p className="text-xs text-stone">提示：当前作品会通过接口保存；若配置了 MySQL，会自动写入数据库。</p>
+      <p className="text-xs text-stone">提示：图片会优先上传到阿里云 OSS，作品信息通过接口写入数据库。</p>
     </form>
   );
 }

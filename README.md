@@ -49,10 +49,18 @@ ADMIN_USERNAME=your_admin_name
 ADMIN_PASSWORD=your_strong_password
 AUTH_SECRET=your_long_random_secret
 DATABASE_URL="mysql://root:password@127.0.0.1:3306/design_portfolio?connection_limit=5"
+OSS_REGION=oss-cn-shanghai
+OSS_BUCKET=your-bucket-name
+OSS_ACCESS_KEY_ID=your-access-key-id
+OSS_ACCESS_KEY_SECRET=your-access-key-secret
+OSS_UPLOAD_PREFIX=portfolio-assets
+OSS_PUBLIC_BASE_URL=
+NEXT_PUBLIC_OSS_HOST=
 ```
 
 > `AUTH_SECRET` 建议至少 32 位随机字符串。
 > `DATABASE_URL` 可暂时留空；留空时会回退到内存数据模式。
+> OSS 变量配置完成后，后台图片上传会走阿里云 OSS 并保存 URL。
 
 ## 项目结构
 
@@ -84,6 +92,8 @@ npm run dev
 npm run prisma:generate
 npm run prisma:migrate
 ```
+
+如果要启用 OSS 图片上传，请确保在部署环境也配置以上 OSS 变量，并将 OSS 域名加入 `NEXT_PUBLIC_OSS_HOST`（仅主机名，不含 `https://`）。
 
 4. 访问
 
