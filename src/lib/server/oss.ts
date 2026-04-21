@@ -23,6 +23,26 @@ function normalizeEndpoint(endpoint: string) {
   return endpoint.replace(/^https?:\/\//, "").replace(/\/+$/, "");
 }
 
+function normalizePublicBaseUrl(value?: string) {
+  if (!value) return undefined;
+  const candidate = withoutTrailingSlash(value);
+
+  try {
+    const parsed = new URL(candidate);
+    const isHttp = parsed.protocol === "http:" || parsed.protocol === "https:";
+    const hasAuth = Boolean(parsed.username || parsed.password);
+    const hasInvalidHost = parsed.hostname.includes("..") || parsed.hostname.endsWith(".com.com");
+
+    if (!isHttp || hasAuth || hasInvalidHost) {
+      return undefined;
+    }
+
+    return parsed.toString().replace(/\/$/, "");
+  } catch {
+    return undefined;
+  }
+}
+
 function normalizePathname(pathname: string) {
   return pathname.replace(/^\/+/, "");
 }
@@ -31,7 +51,7 @@ export function getOssConfig(): OssRuntimeConfig {
   const region = trim(process.env.OSS_REGION) ?? "";
   const bucket = trim(process.env.OSS_BUCKET) ?? "";
   const endpoint = trim(process.env.OSS_ENDPOINT);
-  const publicBaseUrl = trim(process.env.OSS_PUBLIC_BASE_URL);
+  const publicBaseUrl = normalizePublicBaseUrl(trim(process.env.OSS_PUBLIC_BASE_URL));
   const prefix = trim(process.env.OSS_UPLOAD_PREFIX) || "portfolio-assets";
   const accessKeyId = trim(process.env.OSS_ACCESS_KEY_ID);
   const accessKeySecret = trim(process.env.OSS_ACCESS_KEY_SECRET);
