@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BarChart3, FolderKanban, LayoutDashboard, PlusCircle, Tag, Layers3, ShieldCheck } from "lucide-react";
+import { BarChart3, FolderKanban, LayoutDashboard, PlusCircle, Tag, Layers3, ShieldCheck, MessageSquareMore } from "lucide-react";
 import { LogoutButton } from "@/components/admin/logout-button";
 
 const menus = [
@@ -12,8 +12,9 @@ const menus = [
   { href: "/admin/works/new", label: "上传作品", icon: PlusCircle },
   { href: "/admin/categories", label: "分类管理", icon: Layers3 },
   { href: "/admin/tags", label: "标签管理", icon: Tag },
+  { href: "/admin/messages", label: "留言管理", icon: MessageSquareMore },
   { href: "/admin/analytics", label: "数据统计", icon: BarChart3 },
-  { href: "/admin/settings", label: "权限预留", icon: ShieldCheck }
+  { href: "/admin/settings", label: "联系设置", icon: ShieldCheck }
 ];
 
 export function AdminShell({

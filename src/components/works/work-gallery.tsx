@@ -13,9 +13,9 @@ export function WorkGallery({ images, name }: { images: string[]; name: string }
   const dragStateRef = useRef<{ pointerId: number; startX: number; startY: number; scrollLeft: number; scrollTop: number } | null>(null);
   const hasImages = images.length > 0;
 
-  const minZoom = 0.6;
+  const minZoom = 0.1;
   const maxZoom = 4;
-  const step = 0.2;
+  const step = 0.1;
 
   const clampZoom = (value: number) => Math.min(maxZoom, Math.max(minZoom, Number(value.toFixed(2))));
   const currentImage = images[activeIndex] ?? "";
