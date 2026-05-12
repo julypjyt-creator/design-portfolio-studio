@@ -17,9 +17,9 @@ export default function HomePage() {
         <div className="grid gap-10 rounded-xl2 border border-line bg-white p-8 shadow-card md:grid-cols-2 md:p-12">
           <div className="space-y-5">
             <p className="text-xs tracking-[0.24em] text-accent">PERSONAL / STUDIO PORTFOLIO</p>
-            <h1 className="text-4xl font-semibold tracking-tight text-ink md:text-5xl">专业设计作品档案馆</h1>
+            <h1 className="text-4xl font-semibold tracking-tight text-ink md:text-5xl">July的娱乐画廊</h1>
             <p className="max-w-xl text-sm leading-7 text-stone md:text-base">
-              面向个人设计师与工作室的作品展示与管理平台，强调作品视觉表现、信息结构和持续运营效率。
+              记录了一些July在AI探索中的创作，强调作品视觉表现、信息结构、色彩调和，涵盖海报设计、平面设计、建筑渲染等多个领域。
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/works" className="rounded-lg bg-ink px-5 py-2.5 text-sm font-medium text-white">
